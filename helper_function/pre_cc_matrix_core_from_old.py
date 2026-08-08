@@ -411,7 +411,26 @@ def _conv_k_sequences(seqs):
     for s in seqs: out = np.convolve(out, s, mode="full")
     return out
 
-def cyclic_cumulant_sequence_tau0_pattern(x, T0, f0, n, m, K, pattern_dict, remove_mean=False):
+def cyclic_cumulant_sequence_tau0_pattern(
+    x,
+    T0,
+    f0,
+    n,
+    m,
+    K,
+    pattern_dict,
+    remove_mean=False,
+    moment_cache=None,
+):
+    """Build one cyclic-cumulant sequence.
+
+    ``moment_cache`` is optional so the legacy caller keeps exactly the same
+    behaviour.  A caller that builds several cumulant columns may pass one
+    shared dictionary to avoid recomputing identical cyclic moments.  The
+    partition traversal and accumulation order are deliberately unchanged;
+    this is what makes the cached double-precision path bitwise identical to
+    the original implementation.
+    """
     if (n, m) not in pattern_dict:
         return np.zeros(2*K+1, dtype=np.complex128)
     is_conj = np.zeros(n, dtype=np.int32); is_conj[(n-m):] = 1
@@ -420,10 +439,11 @@ def cyclic_cumulant_sequence_tau0_pattern(x, T0, f0, n, m, K, pattern_dict, remo
     for pi in parts:
         for blk in pi:
             nb = len(blk); mb = int(np.sum(is_conj[np.array(blk, dtype=int)])); needed.add((nb, mb))
-    Mcache = {}
+    Mcache = {} if moment_cache is None else moment_cache
     for nb, mb in needed:
-        Mcache[(nb, mb)] = (np.zeros(2*K+1, dtype=np.complex128) if (nb, mb) not in pattern_dict else
-                            cyclic_moment_sequence_tau0_pattern(x, T0, f0, nb, mb, K, get_allowed_k_list(pattern_dict, nb, mb), remove_mean))
+        if (nb, mb) not in Mcache:
+            Mcache[(nb, mb)] = (np.zeros(2*K+1, dtype=np.complex128) if (nb, mb) not in pattern_dict else
+                                cyclic_moment_sequence_tau0_pattern(x, T0, f0, nb, mb, K, get_allowed_k_list(pattern_dict, nb, mb), remove_mean))
     full_half = n*K; center = full_half; C_full = np.zeros(2*full_half+1, dtype=np.complex128)
     for pi in parts:
         coef = ((-1)**(len(pi)-1)) * math.factorial(len(pi)-1)
@@ -443,6 +463,52 @@ def build_estimated_cc_matrix_11x24_from_signal_pattern(x, T0, f0, pattern_dict,
     for j, (n, m) in enumerate(CC_NM):
         M[:, j] = cyclic_cumulant_sequence_tau0_pattern(x, T0, f0, n, m, max_k, pattern_dict, remove_mean)
     return {"matrix_complex": M, "matrix_abs": np.abs(M), "k_list": CC_K_LIST, "col_labels": CC_COL_LABELS}
+
+
+def build_estimated_qpsk_cc_matrix_11x15_simplified_double(
+    x,
+    T0,
+    f0,
+    remove_mean=False,
+    max_k=5,
+):
+    """Build the double-precision QPSK CC input used by CAPNet.
+
+    This is a bitwise-preserving simplification of
+    :func:`build_estimated_cc_matrix_11x24_from_signal_pattern` for the fixed
+    QPSK pattern and the first 15 columns consumed by CAPNet:
+
+    * cyclic moments shared by several cumulants are evaluated once;
+    * the nine order-8 columns discarded by CAPNet are not evaluated;
+    * the original set-partition and floating-point accumulation order is
+      retained exactly.
+
+    Both CPU and CUDA execution continue to use complex128/float64 according
+    to ``CC_RUNTIME_CFG``.  For identical inputs, the returned complex matrix
+    is bitwise equal to ``original["matrix_complex"][:, :15]``.
+    """
+    first15_nm = CC_NM[:15]
+    first15_labels = CC_COL_LABELS[:15]
+    M = np.zeros((len(CC_K_LIST), len(first15_nm)), dtype=np.complex128)
+    moment_cache = {}
+    for j, (n, m) in enumerate(first15_nm):
+        M[:, j] = cyclic_cumulant_sequence_tau0_pattern(
+            x,
+            T0,
+            f0,
+            n,
+            m,
+            max_k,
+            qpsk,
+            remove_mean,
+            moment_cache=moment_cache,
+        )
+    return {
+        "matrix_complex": M,
+        "matrix_abs": np.abs(M),
+        "k_list": CC_K_LIST,
+        "col_labels": first15_labels,
+    }
 
 def get_cc_pdf_and_pattern(signal_type, cfg):
     sig = str(signal_type).lower()

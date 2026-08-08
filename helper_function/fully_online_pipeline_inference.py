@@ -212,6 +212,46 @@ class CAPNet(nn.Module):
         return torch.cat([branch(x) for branch in self.branches], dim=1)
 
 
+class ResBlockLite(nn.Module):
+    """Residual block used by the CAPNetLite training notebooks."""
+
+    def __init__(self, ch):
+        super().__init__()
+        self.conv1 = nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(ch)
+        self.conv2 = nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(ch)
+
+    def forward(self, x):
+        identity = x
+        out = F.relu(self.bn1(self.conv1(x)), inplace=True)
+        out = self.bn2(self.conv2(out))
+        return F.relu(out + identity, inplace=True)
+
+
+class CAPNetLite(nn.Module):
+    """Small CAP classifier matching the LR9+CAPNetLite training notebooks."""
+
+    def __init__(self, n_classes=4, c1=32, c2=64):
+        super().__init__()
+        self.stem = nn.Conv2d(1, c1, kernel_size=3, stride=1, padding=1, bias=False)
+        self.stem_bn = nn.BatchNorm2d(c1)
+        self.block1 = ResBlockLite(c1)
+        self.down = nn.Conv2d(c1, c2, kernel_size=3, stride=(1, 2), padding=1, bias=False)
+        self.down_bn = nn.BatchNorm2d(c2)
+        self.block2 = ResBlockLite(c2)
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(c2, n_classes)
+
+    def forward(self, x):
+        x = F.relu(self.stem_bn(self.stem(x)), inplace=True)
+        x = self.block1(x)
+        x = F.relu(self.down_bn(self.down(x)), inplace=True)
+        x = self.block2(x)
+        x = self.pool(x).flatten(1)
+        return self.fc(x)
+
+
 def _normalize_label(value: str) -> str:
     key = str(value).strip().upper().replace("-", "").replace("_", "")
     aliases = {
@@ -541,24 +581,57 @@ class FullyOnlinePipeline:
         split_mode: str,
         cfg: Mapping | None = None,
         device: str | None = None,
+        lr_vector_key: str = "lr55",
+        cap_model_key: str = "capnet",
+        cc_algorithm: str = "simplified_double",
     ):
         if split_mode not in {"2018train20", "2022train20"}:
             raise ValueError("split_mode must be '2018train20' or '2022train20'")
+        lr_vector_key = str(lr_vector_key).lower()
+        expected_lr_feature_counts = {"lr7": 7, "lr9": 9, "lr55": 55}
+        if lr_vector_key not in expected_lr_feature_counts:
+            raise ValueError("lr_vector_key must be 'lr7', 'lr9', or 'lr55'")
+        cap_model_key = str(cap_model_key).lower()
+        if cap_model_key not in {"capnet", "capnet_lite"}:
+            raise ValueError("cap_model_key must be 'capnet' or 'capnet_lite'")
+        cc_algorithm = str(cc_algorithm).lower()
+        if cc_algorithm not in {"original_double", "simplified_double"}:
+            raise ValueError(
+                "cc_algorithm must be 'original_double' or 'simplified_double'"
+            )
         self.dataset_root = Path(dataset_root).resolve()
         self.model_dir = Path(model_dir).resolve()
         self.split_mode = split_mode
+        self.lr_vector_key = lr_vector_key
+        self.cap_model_key = cap_model_key
+        self.cc_algorithm = cc_algorithm
         self.cfg = dict(cfg or make_default_config(self.dataset_root))
         self.device = torch.device(
             device if device is not None else ("cuda:0" if torch.cuda.is_available() else "cpu")
         )
 
-        self.lr_path = self.model_dir / f"lr55_{split_mode}.joblib"
-        self.cap_path = self.model_dir / f"capnet_{split_mode}.pt"
+        self.lr_path = self.model_dir / f"{self.lr_vector_key}_{split_mode}.joblib"
+        if self.cap_model_key == "capnet_lite":
+            self.cap_path = self.model_dir / f"capnet_lite_c32_64_{split_mode}.pt"
+        else:
+            self.cap_path = self.model_dir / f"capnet_{split_mode}.pt"
         self.lr_artifact = joblib.load(self.lr_path)
         self.lr_model = self.lr_artifact["model"]
         self.lr_feature_names = list(self.lr_artifact["feature_names"])
-        if len(self.lr_feature_names) != 55:
-            raise ValueError(f"Expected 55 LR features, found {len(self.lr_feature_names)}")
+        artifact_vector_key = str(
+            self.lr_artifact.get("vector_key", self.lr_vector_key)
+        ).lower()
+        if artifact_vector_key != self.lr_vector_key:
+            raise ValueError(
+                f"LR artifact vector_key={artifact_vector_key!r} does not match "
+                f"requested lr_vector_key={self.lr_vector_key!r}"
+            )
+        expected_lr_features = expected_lr_feature_counts[self.lr_vector_key]
+        if len(self.lr_feature_names) != expected_lr_features:
+            raise ValueError(
+                f"Expected {expected_lr_features} {self.lr_vector_key.upper()} features, "
+                f"found {len(self.lr_feature_names)}"
+            )
         forbidden = ("truth", "label", "snr", "signal_type", "symbol_rate")
         leaked = [
             name
@@ -569,14 +642,32 @@ class FullyOnlinePipeline:
             raise ValueError(f"LR feature list contains evaluation metadata: {leaked}")
 
         checkpoint = torch.load(self.cap_path, map_location="cpu", weights_only=False)
-        train_cfg = checkpoint.get("train_config", {})
-        model_cfg = dict(train_cfg.get("model_config", {}))
-        model_cfg.pop("name", None)
-        for key in ("shared_k", "shared_s"):
-            if key in model_cfg:
-                model_cfg[key] = tuple(model_cfg[key])
-        self.cap_model = CAPNet(**model_cfg).to(self.device)
-        self.cap_model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+        if self.cap_model_key == "capnet_lite":
+            if "model_state_dict" in checkpoint:
+                state_dict = checkpoint["model_state_dict"]
+            elif "state_dict" in checkpoint:
+                state_dict = checkpoint["state_dict"]
+            else:
+                state_dict = checkpoint
+            c1 = int(state_dict["stem.weight"].shape[0])
+            c2 = int(state_dict["down.weight"].shape[0])
+            n_classes = int(state_dict["fc.weight"].shape[0])
+            self.cap_model = CAPNetLite(
+                n_classes=n_classes,
+                c1=c1,
+                c2=c2,
+            ).to(self.device)
+            self.cap_model.load_state_dict(state_dict, strict=True)
+            train_cfg = checkpoint.get("train_config", {}) if "model_state_dict" in checkpoint else {}
+        else:
+            train_cfg = checkpoint.get("train_config", {})
+            model_cfg = dict(train_cfg.get("model_config", {}))
+            model_cfg.pop("name", None)
+            for key in ("shared_k", "shared_s"):
+                if key in model_cfg:
+                    model_cfg[key] = tuple(model_cfg[key])
+            self.cap_model = CAPNet(**model_cfg).to(self.device)
+            self.cap_model.load_state_dict(checkpoint["model_state_dict"], strict=True)
         self.cap_model.eval()
         self.fine_class_names = list(train_cfg.get("class_names", FINE_CLASS_NAMES))
         if self.fine_class_names != FINE_CLASS_NAMES:
@@ -633,19 +724,31 @@ class FullyOnlinePipeline:
         t0_est = float(estimates["T0_est"])
         cfo_est = float(estimates["cfo_est"])
 
-        raw_cc = cc.build_estimated_cc_matrix_11x24_from_signal_pattern(
-            np.asarray(x_processed_cc, dtype=np.complex128),
-            t0_est,
-            cfo_est,
-            cc.qpsk,
-            remove_mean=False,
-            max_k=5,
-        )
+        x_processed_cc_double = np.asarray(x_processed_cc, dtype=np.complex128)
+        if self.cc_algorithm == "simplified_double":
+            raw_cc = cc.build_estimated_qpsk_cc_matrix_11x15_simplified_double(
+                x_processed_cc_double,
+                t0_est,
+                cfo_est,
+                remove_mean=False,
+                max_k=5,
+            )
+            cc_nm = cc.CC_NM[:15]
+        else:
+            raw_cc = cc.build_estimated_cc_matrix_11x24_from_signal_pattern(
+                x_processed_cc_double,
+                t0_est,
+                cfo_est,
+                cc.qpsk,
+                remove_mean=False,
+                max_k=5,
+            )
+            cc_nm = cc.CC_NM
         power = _cc_power(prepared, x_processed, float(self.cfg["EPS"]))
         _, cc_abs = cc.apply_cc_postprocessing_with_power(
             raw_cc["matrix_complex"],
             power,
-            cc.CC_NM,
+            cc_nm,
             enable_warping=True,
             enable_scaling=False,
             is_theory=False,
@@ -874,6 +977,195 @@ class FullyOnlinePipeline:
         result_df = pd.DataFrame(rows)
         if not result_df.empty:
             result_df = result_df.sort_values(["year", "signal_index"]).reset_index(drop=True)
+        result_df.to_csv(output_csv, index=False)
+        return result_df
+
+    def run_compact_csv(
+        self,
+        dataset_batches: Mapping[int, Iterable[int]],
+        output_csv: Path,
+        resume: bool = False,
+        checkpoint_every: int = 100,
+    ) -> pd.DataFrame:
+        """Run several evaluation sets and save only the requested five CSV fields.
+
+        The CSV schema is fixed to:
+        ``dataset,index,snr_db,true_label,lr_prediction,nn_prediction``.
+        ``nn_prediction`` is empty unless LR routes the signal to ``QPSK-like``.
+        Negative-SNR 2018 rows keep their negative ``snr_db`` while both
+        prediction fields remain empty; no raw signal is loaded and no
+        inference stage is run for those rows.
+        """
+        columns = [
+            "dataset",
+            "index",
+            "snr_db",
+            "true_label",
+            "lr_prediction",
+            "nn_prediction",
+        ]
+        legacy_columns = [
+            "dataset",
+            "index",
+            "true_label",
+            "lr_prediction",
+            "nn_prediction",
+        ]
+        output_csv = Path(output_csv)
+        output_csv.parent.mkdir(parents=True, exist_ok=True)
+
+        existing = pd.DataFrame(columns=columns)
+        completed: set[tuple[int, int]] = set()
+        if resume and output_csv.exists():
+            existing = pd.read_csv(output_csv, keep_default_na=False)
+            if list(existing.columns) == legacy_columns:
+                snr_values = pd.Series(index=existing.index, dtype=np.float64)
+                for existing_year in existing["dataset"].astype(int).unique():
+                    truth = load_truth_table(self.dataset_root, int(existing_year))
+                    snr_col = _truth_column(
+                        truth,
+                        [
+                            "InbandSNRdB",
+                            "inband_snr_db_label",
+                            "inband snr db label",
+                            "snr",
+                            "snr_db",
+                        ],
+                    )
+                    year_mask = existing["dataset"].astype(int).eq(int(existing_year))
+                    signal_indices = existing.loc[year_mask, "index"].astype(int)
+                    snr_values.loc[year_mask] = (
+                        truth.loc[signal_indices, snr_col].astype(float).to_numpy()
+                    )
+                existing.insert(2, "snr_db", snr_values.astype(float))
+                existing = existing.loc[:, columns]
+                existing.to_csv(output_csv, index=False)
+            elif list(existing.columns) == [
+                "dataset",
+                "index",
+                "snr_db",
+                "status",
+                "true_label",
+                "lr_prediction",
+                "nn_prediction",
+            ]:
+                existing = existing.drop(columns=["status"]).loc[:, columns]
+                existing.to_csv(output_csv, index=False)
+            elif list(existing.columns) != columns:
+                raise ValueError(
+                    f"{output_csv} has columns {list(existing.columns)}, expected {columns}"
+                )
+            completed = {
+                (int(row.dataset), int(row.index))
+                for row in existing.itertuples(index=False)
+            }
+        elif not resume:
+            existing.to_csv(output_csv, index=False)
+
+        rows = existing.to_dict("records")
+        since_checkpoint = 0
+
+        for year_value, batch_ids_value in dataset_batches.items():
+            year = int(year_value)
+            truth = load_truth_table(self.dataset_root, year)
+            label_col = _truth_column(
+                truth,
+                [
+                    "SignalType",
+                    "signal_type",
+                    "signal type",
+                    "modulation",
+                    "modulation_type",
+                    "label",
+                ],
+            )
+            snr_col = _truth_column(
+                truth,
+                [
+                    "InbandSNRdB",
+                    "inband_snr_db_label",
+                    "inband snr db label",
+                    "snr",
+                    "snr_db",
+                ],
+            )
+
+            indices = []
+            for batch_id in [int(value) for value in batch_ids_value]:
+                start = (batch_id - 1) * int(self.cfg["N_PER_BATCH"]) + 1
+                stop = batch_id * int(self.cfg["N_PER_BATCH"])
+                indices.extend(range(start, stop + 1))
+
+            pending = [
+                signal_index
+                for signal_index in indices
+                if (year, signal_index) not in completed
+            ]
+            progress = tqdm(
+                pending,
+                desc=f"{self.split_mode}: {year}",
+                unit="signal",
+            )
+
+            for signal_index in progress:
+                truth_row = truth.loc[signal_index]
+                true_label = _normalize_label(truth_row[label_col])
+                snr_db = float(truth_row[snr_col])
+                if year == 2018 and snr_db < 0.0:
+                    rows.append(
+                        {
+                            "dataset": year,
+                            "index": int(signal_index),
+                            "snr_db": snr_db,
+                            "true_label": true_label,
+                            "lr_prediction": "",
+                            "nn_prediction": "",
+                        }
+                    )
+                    completed.add((year, int(signal_index)))
+                    since_checkpoint += 1
+                    if since_checkpoint >= int(checkpoint_every):
+                        pd.DataFrame(rows, columns=columns).to_csv(
+                            output_csv,
+                            index=False,
+                        )
+                        since_checkpoint = 0
+                    continue
+
+                result = self.process_signal(year, signal_index)
+                nn_prediction = (
+                    result.pred_label
+                    if result.coarse_pred == "QPSK-like"
+                    else ""
+                )
+                rows.append(
+                    {
+                        "dataset": year,
+                        "index": int(signal_index),
+                        "snr_db": snr_db,
+                        "true_label": true_label,
+                        "lr_prediction": result.coarse_pred,
+                        "nn_prediction": nn_prediction,
+                    }
+                )
+                completed.add((year, int(signal_index)))
+                since_checkpoint += 1
+
+                if since_checkpoint >= int(checkpoint_every):
+                    pd.DataFrame(rows, columns=columns).to_csv(
+                        output_csv,
+                        index=False,
+                    )
+                    since_checkpoint = 0
+                    gc.collect()
+                    if self.device.type == "cuda":
+                        torch.cuda.empty_cache()
+
+        result_df = pd.DataFrame(rows, columns=columns)
+        if not result_df.empty:
+            result_df = result_df.sort_values(
+                ["dataset", "index"],
+            ).reset_index(drop=True)
         result_df.to_csv(output_csv, index=False)
         return result_df
 

@@ -28,6 +28,7 @@ from . import pre_cc_matrix_core_from_old as cc
 from . import pre_compact_fft3_vector_generator as compact
 from .fully_online_pipeline_inference import (
     CAPNet,
+    CAPNetLite,
     COARSE_CLASS_NAMES,
     FINE_CLASS_NAMES,
     InferenceResult,
@@ -1111,15 +1112,26 @@ class FullyOnlinePipelineGPU:
         cfg: Mapping | None = None,
         device: str | None = None,
         cc_backend: str = "cpu",
+        lr_vector_key: str = "lr55",
+        cap_model_key: str = "capnet",
     ):
         if split_mode not in {"2018train20", "2022train20"}:
             raise ValueError("split_mode must be '2018train20' or '2022train20'")
+        lr_vector_key = str(lr_vector_key).lower()
+        expected_lr_feature_counts = {"lr7": 7, "lr9": 9, "lr55": 55}
+        if lr_vector_key not in expected_lr_feature_counts:
+            raise ValueError("lr_vector_key must be 'lr7', 'lr9', or 'lr55'")
+        cap_model_key = str(cap_model_key).lower()
+        if cap_model_key not in {"capnet", "capnet_lite"}:
+            raise ValueError("cap_model_key must be 'capnet' or 'capnet_lite'")
         cc_backend = str(cc_backend).lower()
         if cc_backend not in {"cpu", "gpu"}:
             raise ValueError("cc_backend must be 'cpu' or 'gpu'")
         self.dataset_root = Path(dataset_root).resolve()
         self.model_dir = Path(model_dir).resolve()
         self.split_mode = split_mode
+        self.lr_vector_key = lr_vector_key
+        self.cap_model_key = cap_model_key
         self.cfg = dict(cfg or make_default_config(self.dataset_root))
         self.cc_backend = cc_backend
         self.device = torch.device(
@@ -1128,23 +1140,56 @@ class FullyOnlinePipelineGPU:
         if self.device.type == "cuda":
             torch.cuda.set_device(self.device)
 
-        self.lr_path = self.model_dir / f"lr55_{split_mode}.joblib"
-        self.cap_path = self.model_dir / f"capnet_{split_mode}.pt"
+        self.lr_path = self.model_dir / f"{self.lr_vector_key}_{split_mode}.joblib"
+        if self.cap_model_key == "capnet_lite":
+            self.cap_path = self.model_dir / f"capnet_lite_c32_64_{split_mode}.pt"
+        else:
+            self.cap_path = self.model_dir / f"capnet_{split_mode}.pt"
         self.lr_artifact = joblib.load(self.lr_path)
         self.lr_feature_names = list(self.lr_artifact["feature_names"])
-        if len(self.lr_feature_names) != 55:
-            raise ValueError(f"Expected 55 LR features, found {len(self.lr_feature_names)}")
+        artifact_vector_key = str(
+            self.lr_artifact.get("vector_key", self.lr_vector_key)
+        ).lower()
+        if artifact_vector_key != self.lr_vector_key:
+            raise ValueError(
+                f"LR artifact vector_key={artifact_vector_key!r} does not match "
+                f"requested lr_vector_key={self.lr_vector_key!r}"
+            )
+        expected_lr_features = expected_lr_feature_counts[self.lr_vector_key]
+        if len(self.lr_feature_names) != expected_lr_features:
+            raise ValueError(
+                f"Expected {expected_lr_features} {self.lr_vector_key.upper()} features, "
+                f"found {len(self.lr_feature_names)}"
+            )
         self.lr_model = TorchLogisticPipeline(self.lr_artifact["model"], self.device).eval()
 
         checkpoint = torch.load(self.cap_path, map_location="cpu", weights_only=False)
-        train_cfg = checkpoint.get("train_config", {})
-        model_cfg = dict(train_cfg.get("model_config", {}))
-        model_cfg.pop("name", None)
-        for key in ("shared_k", "shared_s"):
-            if key in model_cfg:
-                model_cfg[key] = tuple(model_cfg[key])
-        self.cap_model = CAPNet(**model_cfg).to(self.device)
-        self.cap_model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+        if self.cap_model_key == "capnet_lite":
+            if "model_state_dict" in checkpoint:
+                state_dict = checkpoint["model_state_dict"]
+            elif "state_dict" in checkpoint:
+                state_dict = checkpoint["state_dict"]
+            else:
+                state_dict = checkpoint
+            c1 = int(state_dict["stem.weight"].shape[0])
+            c2 = int(state_dict["down.weight"].shape[0])
+            n_classes = int(state_dict["fc.weight"].shape[0])
+            self.cap_model = CAPNetLite(
+                n_classes=n_classes,
+                c1=c1,
+                c2=c2,
+            ).to(self.device)
+            self.cap_model.load_state_dict(state_dict, strict=True)
+            train_cfg = checkpoint.get("train_config", {}) if "model_state_dict" in checkpoint else {}
+        else:
+            train_cfg = checkpoint.get("train_config", {})
+            model_cfg = dict(train_cfg.get("model_config", {}))
+            model_cfg.pop("name", None)
+            for key in ("shared_k", "shared_s"):
+                if key in model_cfg:
+                    model_cfg[key] = tuple(model_cfg[key])
+            self.cap_model = CAPNet(**model_cfg).to(self.device)
+            self.cap_model.load_state_dict(checkpoint["model_state_dict"], strict=True)
         self.cap_model.eval()
         self.fine_class_names = list(train_cfg.get("class_names", FINE_CLASS_NAMES))
         if self.fine_class_names != FINE_CLASS_NAMES:

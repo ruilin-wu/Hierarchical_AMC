@@ -122,6 +122,22 @@ def round_timing_seconds(frame: pd.DataFrame, digits: int = 6) -> pd.DataFrame:
     return out
 
 
+def per_sample_ms_table(frame: pd.DataFrame, digits: int = 4) -> pd.DataFrame:
+    """Convert each scheme's aggregate stage timings into average per-sample milliseconds.
+
+    `profile_four_schemes` only totals each stage over all `n_samples`; this
+    divides every stage (and the total) by `n_samples` and rescales to ms, so
+    schemes stay directly comparable per single inference.
+    """
+    out = frame[["device", "n_samples"]].copy()
+    for col in (*STAGE_COLUMNS, "total_s"):
+        ms_col = col[:-2] + "_ms" if col.endswith("_s") else f"{col}_ms"
+        out[ms_col] = (frame[col] / frame["n_samples"]) * 1000.0
+    numeric = out.select_dtypes(include=[np.number]).columns.drop("n_samples")
+    out[numeric] = out[numeric].round(int(digits))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # CPU moments: original direct projection and symmetry-based simplification
 # ---------------------------------------------------------------------------
@@ -651,6 +667,7 @@ __all__ = [
     "build_qpsk_cap_input_simplified_cpu",
     "build_qpsk_cap_input_simplified_gpu",
     "eligible_qpsklike_indices",
+    "per_sample_ms_table",
     "profile_four_schemes",
     "round_timing_seconds",
 ]
