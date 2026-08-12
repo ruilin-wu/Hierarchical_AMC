@@ -178,3 +178,7 @@ These notebooks execute the complete online pipeline directly from raw `.tim` fi
 - The 2018train20 model evaluates 2018 batches 25–28 and performs cross-domain testing on all 2022 data.
 - The 2022train20 model evaluates 2022 batches 25–28 and performs cross-domain testing on all nonnegative-SNR 2018 data.
 
+
+### 6. Optional: Performance Comparison
+
+To test the performance of this framework compared to other related works, please run `TableI_1_with_NN_operation_speedup.ipynb` in Performance_measuring after downloading all datasets.
