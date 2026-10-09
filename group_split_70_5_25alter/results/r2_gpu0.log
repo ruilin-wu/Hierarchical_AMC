@@ -1,0 +1,152 @@
+[gpu0] visible device: NVIDIA GeForce RTX 3090
+[gpu0] tag=silu_narrowdeep_wd3e-5 arch={'c1': 16, 'c2': 52, 'extra_block': True, 'use_se': False, 'se_ratio': 16, 'activation': 'silu', 'norm': 'bn', 'kernel_size': 3} params=110,412 (OK)
+[gpu0] tag=silu_narrowdeep_adamw_wd1e-4 arch={'c1': 16, 'c2': 52, 'extra_block': True, 'use_se': False, 'se_ratio': 16, 'activation': 'silu', 'norm': 'bn', 'kernel_size': 3} params=110,412 (OK)
+[gpu0] tag=silu_narrowdeep_patience80 arch={'c1': 16, 'c2': 52, 'extra_block': True, 'use_se': False, 'se_ratio': 16, 'activation': 'silu', 'norm': 'bn', 'kernel_size': 3} params=110,412 (OK)
+[gpu0] tag=silu_narrowdeep_ls05 arch={'c1': 16, 'c2': 52, 'extra_block': True, 'use_se': False, 'se_ratio': 16, 'activation': 'silu', 'norm': 'bn', 'kernel_size': 3} params=110,412 (OK)
+[gpu0] LR55 load 2018 01/28 elapsed=11.0s
+[gpu0] LR55 load 2018 02/28 elapsed=21.8s
+[gpu0] LR55 load 2018 03/28 elapsed=32.4s
+[gpu0] LR55 load 2018 04/28 elapsed=42.9s
+[gpu0] LR55 load 2018 05/28 elapsed=53.3s
+[gpu0] LR55 load 2018 06/28 elapsed=63.7s
+[gpu0] LR55 load 2018 07/28 elapsed=74.2s
+[gpu0] LR55 load 2018 08/28 elapsed=84.6s
+[gpu0] LR55 load 2018 09/28 elapsed=95.0s
+[gpu0] LR55 load 2018 10/28 elapsed=105.5s
+[gpu0] LR55 load 2018 11/28 elapsed=115.9s
+[gpu0] LR55 load 2018 12/28 elapsed=126.3s
+[gpu0] LR55 load 2018 13/28 elapsed=136.6s
+[gpu0] LR55 load 2018 14/28 elapsed=147.1s
+[gpu0] LR55 load 2018 15/28 elapsed=157.5s
+[gpu0] LR55 load 2018 16/28 elapsed=167.8s
+[gpu0] LR55 load 2018 17/28 elapsed=178.2s
+[gpu0] LR55 load 2018 18/28 elapsed=188.5s
+[gpu0] LR55 load 2018 19/28 elapsed=198.8s
+[gpu0] LR55 load 2018 20/28 elapsed=209.1s
+[gpu0] LR55 load 2018 21/28 elapsed=219.4s
+[gpu0] LR55 load 2018 22/28 elapsed=229.7s
+[gpu0] LR55 load 2018 23/28 elapsed=240.1s
+[gpu0] LR55 load 2018 24/28 elapsed=250.4s
+[gpu0] LR55 load 2018 25/28 elapsed=260.9s
+[gpu0] LR55 load 2018 26/28 elapsed=271.2s
+[gpu0] LR55 load 2018 27/28 elapsed=281.6s
+[gpu0] LR55 load 2018 28/28 elapsed=291.9s
+[gpu0] LR55 load 2022 01/28 elapsed=302.4s
+[gpu0] LR55 load 2022 02/28 elapsed=312.7s
+[gpu0] LR55 load 2022 03/28 elapsed=322.9s
+[gpu0] LR55 load 2022 04/28 elapsed=333.2s
+[gpu0] LR55 load 2022 05/28 elapsed=343.4s
+[gpu0] LR55 load 2022 06/28 elapsed=353.6s
+[gpu0] LR55 load 2022 07/28 elapsed=363.7s
+[gpu0] LR55 load 2022 08/28 elapsed=374.1s
+[gpu0] LR55 load 2022 09/28 elapsed=384.5s
+[gpu0] LR55 load 2022 10/28 elapsed=394.9s
+[gpu0] LR55 load 2022 11/28 elapsed=405.3s
+[gpu0] LR55 load 2022 12/28 elapsed=415.8s
+[gpu0] LR55 load 2022 13/28 elapsed=426.1s
+[gpu0] LR55 load 2022 14/28 elapsed=436.6s
+[gpu0] LR55 load 2022 15/28 elapsed=447.1s
+[gpu0] LR55 load 2022 16/28 elapsed=457.5s
+[gpu0] LR55 load 2022 17/28 elapsed=467.8s
+[gpu0] LR55 load 2022 18/28 elapsed=478.2s
+[gpu0] LR55 load 2022 19/28 elapsed=488.7s
+[gpu0] LR55 load 2022 20/28 elapsed=499.2s
+[gpu0] LR55 load 2022 21/28 elapsed=509.4s
+[gpu0] LR55 load 2022 22/28 elapsed=520.0s
+[gpu0] LR55 load 2022 23/28 elapsed=530.4s
+[gpu0] LR55 load 2022 24/28 elapsed=540.8s
+[gpu0] LR55 load 2022 25/28 elapsed=551.2s
+[gpu0] LR55 load 2022 26/28 elapsed=561.7s
+[gpu0] LR55 load 2022 27/28 elapsed=572.1s
+[gpu0] LR55 load 2022 28/28 elapsed=582.6s
+[gpu0] LR55 rows: 223632 X: (223632, 55)
+[gpu0] CC load 2018 01/28 elapsed=0.1s
+[gpu0] CC load 2018 02/28 elapsed=0.2s
+[gpu0] CC load 2018 03/28 elapsed=0.2s
+[gpu0] CC load 2018 04/28 elapsed=0.3s
+[gpu0] CC load 2018 05/28 elapsed=0.3s
+[gpu0] CC load 2018 06/28 elapsed=0.3s
+[gpu0] CC load 2018 07/28 elapsed=0.3s
+[gpu0] CC load 2018 08/28 elapsed=0.3s
+[gpu0] CC load 2018 09/28 elapsed=0.3s
+[gpu0] CC load 2018 10/28 elapsed=0.3s
+[gpu0] CC load 2018 11/28 elapsed=0.3s
+[gpu0] CC load 2018 12/28 elapsed=0.3s
+[gpu0] CC load 2018 13/28 elapsed=0.4s
+[gpu0] CC load 2018 14/28 elapsed=0.4s
+[gpu0] CC load 2018 15/28 elapsed=0.4s
+[gpu0] CC load 2018 16/28 elapsed=0.4s
+[gpu0] CC load 2018 17/28 elapsed=0.4s
+[gpu0] CC load 2018 18/28 elapsed=0.4s
+[gpu0] CC load 2018 19/28 elapsed=0.4s
+[gpu0] CC load 2018 20/28 elapsed=0.4s
+[gpu0] CC load 2018 21/28 elapsed=0.4s
+[gpu0] CC load 2018 22/28 elapsed=0.5s
+[gpu0] CC load 2018 23/28 elapsed=0.5s
+[gpu0] CC load 2018 24/28 elapsed=0.5s
+[gpu0] CC load 2018 25/28 elapsed=0.5s
+[gpu0] CC load 2018 26/28 elapsed=0.5s
+[gpu0] CC load 2018 27/28 elapsed=0.5s
+[gpu0] CC load 2018 28/28 elapsed=0.5s
+[gpu0] CC load 2022 01/28 elapsed=0.5s
+[gpu0] CC load 2022 02/28 elapsed=0.5s
+[gpu0] CC load 2022 03/28 elapsed=0.6s
+[gpu0] CC load 2022 04/28 elapsed=0.6s
+[gpu0] CC load 2022 05/28 elapsed=0.6s
+[gpu0] CC load 2022 06/28 elapsed=0.6s
+[gpu0] CC load 2022 07/28 elapsed=0.6s
+[gpu0] CC load 2022 08/28 elapsed=0.6s
+[gpu0] CC load 2022 09/28 elapsed=0.6s
+[gpu0] CC load 2022 10/28 elapsed=0.6s
+[gpu0] CC load 2022 11/28 elapsed=0.7s
+[gpu0] CC load 2022 12/28 elapsed=0.7s
+[gpu0] CC load 2022 13/28 elapsed=0.7s
+[gpu0] CC load 2022 14/28 elapsed=0.7s
+[gpu0] CC load 2022 15/28 elapsed=0.7s
+[gpu0] CC load 2022 16/28 elapsed=0.7s
+[gpu0] CC load 2022 17/28 elapsed=0.7s
+[gpu0] CC load 2022 18/28 elapsed=0.7s
+[gpu0] CC load 2022 19/28 elapsed=0.7s
+[gpu0] CC load 2022 20/28 elapsed=0.8s
+[gpu0] CC load 2022 21/28 elapsed=0.8s
+[gpu0] CC load 2022 22/28 elapsed=0.8s
+[gpu0] CC load 2022 23/28 elapsed=0.8s
+[gpu0] CC load 2022 24/28 elapsed=0.8s
+[gpu0] CC load 2022 25/28 elapsed=0.8s
+[gpu0] CC load 2022 26/28 elapsed=0.8s
+[gpu0] CC load 2022 27/28 elapsed=0.8s
+[gpu0] CC load 2022 28/28 elapsed=0.9s
+[gpu0] 2018train20: train=78144 val=5584 test=27904 ext=112000
+[gpu0] 2022train20: train=78400 val=5600 test=28000 ext=111632
+[gpu0] tag=silu_narrowdeep_wd3e-5 seed=301 2018train20: same=90.5892% ext=91.5571% (best_val=81.88%@82, 127 epochs, 5.6 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_wd3e-5 seed=302 2018train20: same=90.3276% ext=91.1527% (best_val=81.70%@51, 96 epochs, 4.5 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_wd3e-5 seed=303 2018train20: same=90.6214% ext=91.3304% (best_val=81.88%@54, 99 epochs, 4.6 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_wd3e-5 seed=304 2018train20: same=90.4351% ext=91.2830% (best_val=81.81%@64, 109 epochs, 5.1 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_wd3e-5 seed=301 2022train20: same=92.7000% ext=89.9339% (best_val=86.68%@114, 159 epochs, 7.6 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_wd3e-5 seed=302 2022train20: same=92.6036% ext=89.8819% (best_val=86.00%@135, 180 epochs, 8.5 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_wd3e-5 seed=303 2022train20: same=92.7357% ext=90.0745% (best_val=85.89%@65, 110 epochs, 5.3 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_wd3e-5 seed=304 2022train20: same=92.7179% ext=89.8990% (best_val=86.43%@162, 200 epochs, 9.6 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_adamw_wd1e-4 seed=301 2018train20: same=90.3777% ext=91.1286% (best_val=81.84%@43, 88 epochs, 4.2 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_adamw_wd1e-4 seed=302 2018train20: same=90.3025% ext=91.0893% (best_val=81.59%@32, 77 epochs, 3.6 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_adamw_wd1e-4 seed=303 2018train20: same=90.5784% ext=91.3196% (best_val=82.02%@60, 105 epochs, 5.0 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_adamw_wd1e-4 seed=304 2018train20: same=90.4530% ext=91.0509% (best_val=82.31%@55, 100 epochs, 4.7 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_adamw_wd1e-4 seed=301 2022train20: same=92.7786% ext=89.9984% (best_val=86.68%@128, 173 epochs, 8.4 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_adamw_wd1e-4 seed=302 2022train20: same=92.7143% ext=89.9841% (best_val=85.96%@74, 119 epochs, 5.7 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_adamw_wd1e-4 seed=303 2022train20: same=92.5679% ext=89.6696% (best_val=86.07%@75, 120 epochs, 5.8 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_adamw_wd1e-4 seed=304 2022train20: same=92.7643% ext=90.0808% (best_val=86.18%@84, 129 epochs, 6.2 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_patience80 seed=301 2018train20: same=90.5712% ext=91.3893% (best_val=81.73%@87, 167 epochs, 8.1 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_patience80 seed=302 2018train20: same=90.2165% ext=90.8473% (best_val=81.70%@43, 123 epochs, 6.0 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_patience80 seed=303 2018train20: same=90.5784% ext=91.3804% (best_val=81.95%@115, 195 epochs, 9.6 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_patience80 seed=304 2018train20: same=90.4386% ext=90.8330% (best_val=81.98%@63, 143 epochs, 6.8 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_patience80 seed=301 2022train20: same=92.7714% ext=90.0029% (best_val=86.43%@159, 239 epochs, 11.4 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_patience80 seed=302 2022train20: same=92.7786% ext=90.1498% (best_val=86.04%@143, 223 epochs, 10.7 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_patience80 seed=303 2022train20: same=92.7286% ext=90.0002% (best_val=86.21%@172, 252 epochs, 12.0 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_patience80 seed=304 2022train20: same=92.7000% ext=89.9384% (best_val=86.32%@181, 260 epochs, 12.4 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_ls05 seed=301 2018train20: same=90.6322% ext=91.4027% (best_val=82.02%@87, 132 epochs, 6.5 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_ls05 seed=302 2018train20: same=90.4637% ext=91.1884% (best_val=81.77%@75, 120 epochs, 5.9 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_ls05 seed=303 2018train20: same=90.5211% ext=91.0179% (best_val=81.91%@57, 102 epochs, 5.1 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_ls05 seed=304 2018train20: same=90.4673% ext=91.1500% (best_val=82.06%@65, 110 epochs, 5.5 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_ls05 seed=301 2022train20: same=92.5893% ext=90.0548% (best_val=86.11%@69, 114 epochs, 5.5 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_ls05 seed=302 2022train20: same=92.6429% ext=89.9814% (best_val=86.36%@198, 200 epochs, 9.7 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_ls05 seed=303 2022train20: same=92.6536% ext=90.0826% (best_val=86.36%@113, 158 epochs, 6.6 min, params=110,412)
+[gpu0] tag=silu_narrowdeep_ls05 seed=304 2022train20: same=92.6179% ext=90.1193% (best_val=86.25%@96, 141 epochs, 5.2 min, params=110,412)

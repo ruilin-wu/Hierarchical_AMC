@@ -1,184 +1,111 @@
-# LR55 + CNN Modulation Classification Pipeline
+# LR8_32 + CNN
 
-This directory implements an eight-class modulation-classification pipeline for CSPB.ML.2018 and CSPB.ML.2022. Starting from raw complex-IQ `.tim` files, the pipeline detects and frequency-shifts the band of interest (BOI), extracts FFT features, and applies LR55 for five-class coarse classification. Samples classified as `QPSK-like` are passed through blind symbol-rate/carrier-frequency-offset estimation, a cyclic-cumulant (CC) matrix, and CNN to obtain the final eight-class prediction.
-
-```text
-.tim IQ
-  -> BOI detection and frequency shift
-  -> FFT3 features
-  -> LR55: BPSK / MSK / DQPSK / 8PSK / QPSK-like
-  -> QPSK-like route
-  -> blind Rs/CFO estimation
-  -> 11x15 CC matrix
-  -> CNN: QPSK / 16QAM / 64QAM / 256QAM
-```
-
-## Dataset
-
-The dataset entry page is [Cyclostationary Signal Processing — Datasets](https://cyclostationary.blog/data-sets/). 
-
-### Raw-data location
-
-The main workflow treats this directory as `PROJECT_DIR`. Place the raw dataset at:
+Eight-class modulation classification using a 32-feature logistic regression router and a four-class CNN.
 
 ```text
-PROJECT_DIR/../../CSPB.ML_dataset
+Raw IQ → BOI filtering/shift → P96-clipped z → 3 FFTs → LR
+                                                     ├─ BPSK / MSK / DQPSK / 8PSK
+                                                     └─ QPSK-like → blind Rs/CFO → CC → CNN
 ```
 
-The intended layout is:
+
+## Environment
+
+Reference environment: **Python 3.10.14, Linux, PyTorch 2.5.1+cu121**. Install the recorded package versions:
+
+```bash
+conda create -n lr8_32_capnet python=3.10.14 pip -y
+conda activate lr8_32_capnet
+python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+python -m pip install numpy==2.1.2 scipy==1.15.3 pandas==2.3.3 scikit-learn==1.7.2 joblib==1.5.3 matplotlib==3.10.7 tqdm==4.67.1 ipython==8.37.0 ipykernel==6.29.5
+python -m ipykernel install --user --name lr8_32_capnet --display-name "Python (LR8_32 CNN)"
+```
+
+Training requires CUDA. The 2018/2022 training and inference notebooks default to physical GPUs **2/3**; change `CUDA_VISIBLE_DEVICES` to your GPU number before starting a fresh kernel.
+
+## Dataset and layout
+
+Download **`CSPB.ML.2018 and CSPB.ML.2022.zip`** from [IEEE DataPort](https://ieee-dataport.org/documents/synthetic-digitally-modulated-signal-datasets-automatic-modulation-classification), following its login/access requirements. DOI: [10.21227/pcj5-zr38](https://doi.org/10.21227/pcj5-zr38).
+
+Each year contains 112,000 signals: 28 batches × 4,000 signals, covering eight modulation classes. Each `.tim` contains 32,768 complex IQ samples; the reader skips two float32 header values, then reads interleaved I/Q.
 
 ```text
 Project/
 ├── CSPB.ML_dataset/
 │   ├── CSPB_ML_2018_Data/
 │   │   ├── CSPB_ML_2018_Signal_Truth_Labels.txt
-│   │   ├── Batch_Dir_1/
-│   │   │   ├── signal_1.tim
-│   │   │   └── ...
-│   │   ├── Batch_Dir_2/
-│   │   └── ... Batch_Dir_28/
+│   │   └── Batch_Dir_1/ ... Batch_Dir_28/
+│   │       └── signal_<SignalIndex>.tim
 │   └── CSPB_ML_2022_Data/
 │       ├── CSPB_ML_2022_Signal_Truth_Labels.txt
-│       ├── Batch_Dir_1/
-│       └── ... Batch_Dir_28/
-└── SPL_code/
-    └── spl_sourcecode/          # This directory: PROJECT_DIR
+│       └── Batch_Dir_1/ ... Batch_Dir_28/
+│           └── signal_<SignalIndex>.tim
+└── Code/
+    └── boi_p96_fft3_github/
+        ├── README.md
+        ├── *.ipynb                         # Eight notebooks listed below
+        ├── helper_function/                # BOI, FFT, blind estimation and CC
+        ├── group_split_70_5_25alter/
+        │   ├── split_utils.py
+        │   └── splits/
+        │       ├── 2018_group_split.csv
+        │       ├── 2022_group_split.csv
+        │       └── metadata.json
+        ├── fully_online_pipeline_models/   # LR .joblib and CNN .pt weights
+        ├── generated_boi_p96_fft2_pt/       # Generated feature caches
+        ├── generated_qpsklike_cc_11x15_boi_p96_fft2_pt/  # Generated CC caches
+        ├── snr_acc_samples_lr8_32_xproccc_<year>train20.pt # Simulated results
+        └── fully_online_inference_results/ # End-to-end CSV results
 ```
 
-Regardless of the names used inside the downloaded archives, the final directory and filenames must match this structure. The `signal_N.tim` files use global indices: Batch 1 contains signals 1–4000, Batch 2 contains signals 4001–8000, and so on.
 
-Run these checks from `PROJECT_DIR`:
+**Run with the kernel working directory set to `boi_p96_fft3_github/`.** Training/inference use `../../CSPB.ML_dataset`. 
 
-```bash
-test -f ../../CSPB.ML_dataset/CSPB_ML_2018_Data/CSPB_ML_2018_Signal_Truth_Labels.txt
-test -f ../../CSPB.ML_dataset/CSPB_ML_2022_Data/CSPB_ML_2022_Signal_Truth_Labels.txt
+## Dataset split
 
-find ../../CSPB.ML_dataset/CSPB_ML_2018_Data -type f -name '*.tim' | wc -l
-find ../../CSPB.ML_dataset/CSPB_ML_2022_Data -type f -name '*.tim' | wc -l
-```
-
-Both count commands should print `112000` for a complete dataset.
-
-## Python environment
-
-Linux, Python 3.10, and an NVIDIA CUDA GPU are recommended. The code has been used with these main package versions:
-
-| Software | Tested version |
-|---|---:|
-| Python | 3.10.14 |
-| NumPy | 1.26.4 |
-| pandas | 2.3.3 |
-| Matplotlib | 3.10.7 |
-| scikit-learn | 1.7.2 |
-| joblib | 1.5.3 |
-| tqdm | 4.67.1 |
-| PyTorch | 2.5.1+cu121 |
-| IPython | 8.37.0 |
-| ipykernel | 6.29.5 |
-
-Create the Python environment:
-
-```bash
-python3.10 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install \
-  numpy==1.26.4 \
-  pandas==2.3.3 \
-  matplotlib==3.10.7 \
-  scikit-learn==1.7.2 \
-  joblib==1.5.3 \
-  tqdm==4.67.1 \
-  IPython==8.37.0 \
-  ipykernel==6.29.5 \
-  jupyterlab
-```
-
-## Recommended execution order
-
-Run each notebook from top to bottom in a fresh kernel. If the required intermediate files already exist, start from the corresponding downstream step.
-
-### 1. Generate compact BOI + FFT3 vectors
-
-Run in this order:
-
-1. `pre_BOI+FFT-Generate-2018-compact-vectors-final.ipynb`
-2. `pre_BOI+FFT-Generate-2022-compact-vectors-final.ipynb`
-
-These notebooks:
-
-- read the raw `.tim` files and truth-label files;
-- perform BOI detection, frequency shifting, and three-branch FFT feature extraction;
-- save `x_processed`, LR vectors, Rs/CFO vectors, truth metadata, and power information.
-
-### 2. Generate QPSK-like blind-Rs/CFO CC matrices
-
-Run in this order:
-
-1. `pre_QPSK_like_CC_Matrix_generate_blind_Rs_CFO_ptvectors-2018.ipynb`
-2. `pre_QPSK_like_CC_Matrix_generate_blind_Rs_CFO_ptvectors-2022.ipynb`
-
-These notebooks:
-
-- read the compact PT files from Step 1;
-- process only `QPSK`, `16QAM`, `64QAM`, and `256QAM` samples;
-- estimate Rs/CFO from `rs20` and `cfo1`;
-- generate 11x24 CC matrices, of which the first 15 columns are used for training.
-
-Both notebooks use `cuda:0` when CUDA is available. The CC helper can fall back to the CPU, but CPU execution is substantially slower.
-
-### 3. Optional: run the FFT-feature ablation study
-
-Run:
+[split_utils.py](group_split_70_5_25alter/split_utils.py) assigns complete parameter groups to approximately **70% train / 5% validation / 25% test**, with base seed `20260926`. Grouping uses:
 
 ```text
-Ablation-6baselines-FFT-ablation-5class-8class-LR-MLP.ipynb
+BaseSymbolPeriod, CarrierOffset, ExcessBandwidth, UpsampleFactor,
+DownsampleFactor, InbandSNRdB, NoiseSpectralDensitydB
 ```
 
-This notebook uses the 56 compact PT files from Step 1 to compare six baselines:
-
-- 55D five-class LR;
-- five-class LR without `FFT{|x|²}`;
-- five-class LR without `FFT{x²}`;
-- five-class LR without `FFT{x⁴}`;
-- 55D eight-class LR;
-- 55D eight-class MLP.
-
-It displays a 6×4 accuracy table and does not save models or result files. It does not require the CC dataset.
-
-### 4. Train LR55 + CNN
-
-Run sequentially, or run each notebook on its assigned GPU:
-
-1. `Classfier-LR55-CAPNetLite-QPSKlike-blind-RsCFO-11x15-2018train20.ipynb`
-2. `Classfier-LR55-CAPNetLite-QPSKlike-blind-RsCFO-11x15-2022train20.ipynb`
-
-Each notebook performs three tasks:
-
-1. trains a five-class Logistic Regression model from the `lr55` compact vectors;
-2. trains a four-class CNN model from the QPSK-like CC PT files;
-3. simulates the complete eight-class pipeline using the precomputed intermediate data.
-
-GPU configuration:
-
-- the 2018train20 notebook uses physical GPU 2 through `CUDA_VISIBLE_DEVICES="2"`;
-- the 2022train20 notebook uses physical GPU 3 through `CUDA_VISIBLE_DEVICES="3"`;
-- each notebook uses only one GPU.
+`SignalIndex` and `SignalType` are excluded from the group key, keeping all modulations with identical generation parameters in one split. Negative-SNR 2018 samples are excluded.
 
 
-### 5. Run fully-online inference
+## Run order
 
-After the model files have been saved, run:
+Execute each notebook from top to bottom.
 
-1. `FullyOnline-Inference-LR55-CAPNetLite-2018train20.ipynb`
-2. `FullyOnline-Inference-LR55-CAPNetLite-2022train20.ipynb`
+| Step | Notebook | Purpose |
+| --- | --- | --- |
+| 1 | [2018 BOI/FFT](pre_BOI%2BFFT-Generate-2018-compact-vectors-final.ipynb) | Raw IQ → waveforms, LR features, blind Rs/CFO PT files |
+| 2 | [2022 BOI/FFT](pre_BOI%2BFFT-Generate-2022-compact-vectors-final.ipynb) | Same preprocessing for 2022 |
+| 3 | [2018 CC](pre_QPSK_like_CC_Matrix_generate_blind_Rs_CFO_ptvectors-2018.ipynb) | Step 1 outputs → raw complex 11×15 CC for QPSK-like samples |
+| 4 | [2022 CC](pre_QPSK_like_CC_Matrix_generate_blind_Rs_CFO_ptvectors-2022.ipynb) | Step 2 outputs → 2022 CC files |
+| 5 | [2018 training](Classfier-LR8_32-CNN-QPSKlike-blind-RsCFO-11x15-2018train20.ipynb) | Train LR/CNN; save weights and simulated evaluation results |
+| 6 | [2022 training](Classfier-LR8_32-CNN-QPSKlike-blind-RsCFO-11x15-2022train20.ipynb) | Train the corresponding 2022 models |
+| 7 | [2018-model inference](FullyOnline-Inference-LR8_32-CNN-2018train20.ipynb) | Raw IQ → predictions on 2018 test and all eligible 2022 samples |
+| 8 | [2022-model inference](FullyOnline-Inference-LR8_32-CNN-2022train20.ipynb) | Raw IQ → predictions on 2022 test and all eligible 2018 samples |
 
-These notebooks execute the complete online pipeline directly from raw `.tim` files. They do not read the precomputed compact PT or CC PT files.
+**Both training notebooks require both years' feature and CC caches.** With existing weights, raw IQ and split manifests, skip directly to steps **7–8**; online inference does not need cached features or CC matrices.
 
-- The 2018train20 model evaluates 2018 batches 25–28 and performs cross-domain testing on all 2022 data.
-- The 2022train20 model evaluates 2022 batches 25–28 and performs cross-domain testing on all nonnegative-SNR 2018 data.
+## Models and outputs
 
+Each training notebook runs one CNN seed for 200 epochs and saves its best-validation checkpoint. Default model names are:
 
-### 6. Optional: Performance Comparison
+```text
+lr8_32_<year>train20.joblib
+capnet_lite_lr8_32_xprocrawcc_warpscale_k5_c20_20_nb3_2_<year>train20.pt
+```
 
-To test the performance of this framework compared to other related works, please run `TableI_1_with_NN_operation_speedup.ipynb` in Performance_measuring after downloading all datasets.
+Additional `_seed<number>.pt` files are not loaded automatically; select one through `CAP_MODEL_PATH` if needed.
+
+Inference saves `fully_online_inference_results/LR8_32-CAPNetLite-<year>train20.csv`, reports accuracy and displays one combined two-year confusion matrix.
+
+## Optional: CPU latency evaluation
+
+CPU latency tests are available in [`cpu_latency_comparison/`](cpu_latency_comparison/). Only one notebook needs to be run: [`TableI_current_Conditional_analysis_and_CPU_tests_recomputed.ipynb`](cpu_latency_comparison/TableI_current_Conditional_analysis_and_CPU_tests_recomputed.ipynb).
+
+The CPU package includes **16 PT checkpoints (8 configurations × 2 training years, one seed each)**, four LR models, and the required helpers. Inputs are generated in memory from the raw dataset at `../../CSPB.ML_dataset` and the existing split manifests; no input caches or historical result files are required. The default accuracy check uses 32 samples per class, configurable via `SAMPLES_PER_CLASS`, and reports single-checkpoint sample accuracy rather than five-seed statistics. CPU timings are measured during execution, and results remain embedded in the notebook. The complete distributed project is under **100 MB**, excluding the separately downloaded dataset and files generated by the main training workflow.
+

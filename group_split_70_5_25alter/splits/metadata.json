@@ -1,0 +1,50 @@
+{
+  "seed": 20260926,
+  "group_fields": [
+    "BaseSymbolPeriod",
+    "CarrierOffset",
+    "ExcessBandwidth",
+    "UpsampleFactor",
+    "DownsampleFactor",
+    "InbandSNRdB",
+    "NoiseSpectralDensitydB"
+  ],
+  "group_excludes_signal_type": true,
+  "split_seed": 20260926,
+  "sample_ratio_target": {
+    "train": 0.7,
+    "val": 0.05,
+    "test": 0.25
+  },
+  "negative_2018_snr_excluded": true,
+  "counts": {
+    "2018": {
+      "train": {
+        "samples": 78144,
+        "groups": 1581
+      },
+      "val": {
+        "samples": 5584,
+        "groups": 112
+      },
+      "test": {
+        "samples": 27904,
+        "groups": 564
+      }
+    },
+    "2022": {
+      "train": {
+        "samples": 78400,
+        "groups": 1586
+      },
+      "val": {
+        "samples": 5600,
+        "groups": 112
+      },
+      "test": {
+        "samples": 28000,
+        "groups": 566
+      }
+    }
+  }
+}

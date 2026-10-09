@@ -252,6 +252,50 @@ class CAPNetLite(nn.Module):
         return self.fc(x)
 
 
+class ResBlockLiteSiLU(nn.Module):
+    """SiLU residual block used by the narrow-deep CAPNetLite variant."""
+
+    def __init__(self, ch):
+        super().__init__()
+        self.conv1 = nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(ch)
+        self.conv2 = nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(ch)
+
+    def forward(self, x):
+        identity = x
+        out = F.silu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        return F.silu(out + identity)
+
+
+class CAPNetLiteNarrowDeep(nn.Module):
+    """Narrow-deep + SiLU CAPNetLite variant (c1=16, c2=52, +1 extra ResBlock,
+    110,412 params) found by the group_split_70_5_25 seed/architecture search;
+    see response_to_spl/r1c1/group_split_70_5_25/results/final2_all.csv."""
+
+    def __init__(self, n_classes=4, c1=16, c2=52):
+        super().__init__()
+        self.stem = nn.Conv2d(1, c1, kernel_size=3, stride=1, padding=1, bias=False)
+        self.stem_bn = nn.BatchNorm2d(c1)
+        self.block1 = ResBlockLiteSiLU(c1)
+        self.down = nn.Conv2d(c1, c2, kernel_size=3, stride=(1, 2), padding=1, bias=False)
+        self.down_bn = nn.BatchNorm2d(c2)
+        self.block2 = ResBlockLiteSiLU(c2)
+        self.block3 = ResBlockLiteSiLU(c2)
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(c2, n_classes)
+
+    def forward(self, x):
+        x = F.silu(self.stem_bn(self.stem(x)))
+        x = self.block1(x)
+        x = F.silu(self.down_bn(self.down(x)))
+        x = self.block2(x)
+        x = self.block3(x)
+        x = self.pool(x).flatten(1)
+        return self.fc(x)
+
+
 def _normalize_label(value: str) -> str:
     key = str(value).strip().upper().replace("-", "").replace("_", "")
     aliases = {
@@ -592,8 +636,10 @@ class FullyOnlinePipeline:
         if lr_vector_key not in expected_lr_feature_counts:
             raise ValueError("lr_vector_key must be 'lr7', 'lr9', or 'lr55'")
         cap_model_key = str(cap_model_key).lower()
-        if cap_model_key not in {"capnet", "capnet_lite"}:
-            raise ValueError("cap_model_key must be 'capnet' or 'capnet_lite'")
+        if cap_model_key not in {"capnet", "capnet_lite", "capnet_lite_narrowdeep"}:
+            raise ValueError(
+                "cap_model_key must be 'capnet', 'capnet_lite', or 'capnet_lite_narrowdeep'"
+            )
         cc_algorithm = str(cc_algorithm).lower()
         if cc_algorithm not in {"original_double", "simplified_double"}:
             raise ValueError(
@@ -613,6 +659,8 @@ class FullyOnlinePipeline:
         self.lr_path = self.model_dir / f"{self.lr_vector_key}_{split_mode}.joblib"
         if self.cap_model_key == "capnet_lite":
             self.cap_path = self.model_dir / f"capnet_lite_c32_64_{split_mode}.pt"
+        elif self.cap_model_key == "capnet_lite_narrowdeep":
+            self.cap_path = self.model_dir / f"capnet_lite_narrowdeep_{split_mode}.pt"
         else:
             self.cap_path = self.model_dir / f"capnet_{split_mode}.pt"
         self.lr_artifact = joblib.load(self.lr_path)
@@ -653,6 +701,23 @@ class FullyOnlinePipeline:
             c2 = int(state_dict["down.weight"].shape[0])
             n_classes = int(state_dict["fc.weight"].shape[0])
             self.cap_model = CAPNetLite(
+                n_classes=n_classes,
+                c1=c1,
+                c2=c2,
+            ).to(self.device)
+            self.cap_model.load_state_dict(state_dict, strict=True)
+            train_cfg = checkpoint.get("train_config", {}) if "model_state_dict" in checkpoint else {}
+        elif self.cap_model_key == "capnet_lite_narrowdeep":
+            if "model_state_dict" in checkpoint:
+                state_dict = checkpoint["model_state_dict"]
+            elif "state_dict" in checkpoint:
+                state_dict = checkpoint["state_dict"]
+            else:
+                state_dict = checkpoint
+            c1 = int(state_dict["stem.weight"].shape[0])
+            c2 = int(state_dict["down.weight"].shape[0])
+            n_classes = int(state_dict["fc.weight"].shape[0])
+            self.cap_model = CAPNetLiteNarrowDeep(
                 n_classes=n_classes,
                 c1=c1,
                 c2=c2,
