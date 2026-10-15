@@ -103,6 +103,3 @@ Additional `_seed<number>.pt` files are not loaded automatically; select one thr
 
 Inference saves `fully_online_inference_results/LR8_32-CAPNetLite-<year>train20.csv`, reports accuracy and displays one combined two-year confusion matrix.
 
-## Optional: CPU latency evaluation
-
-CPU latency tests are available in [`cpu_latency_comparison/`](cpu_latency_comparison/). Only one notebook needs to be run: [`TableI_current_Conditional_analysis_and_CPU_tests_recomputed.ipynb`](cpu_latency_comparison/TableI_current_Conditional_analysis_and_CPU_tests_recomputed.ipynb).
