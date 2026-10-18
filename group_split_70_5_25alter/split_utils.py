@@ -1,9 +1,3 @@
-"""Split all eight modulations together by their shared generation parameters.
-
-SignalIndex and SignalType are excluded from the group key. Negative-SNR 2018
-rows are removed before grouping. No eligible IQ waveform is discarded.
-"""
-
 from pathlib import Path
 import json
 
